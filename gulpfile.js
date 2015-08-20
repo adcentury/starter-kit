@@ -1,5 +1,5 @@
 /**
- *  Amaze UI Starter Kit
+ *  Amaze UI Starter Kit (Separate Pages)
  *
  *  Forked from Web Starter Kit
  *  Copyright 2014 Google Inc. All rights reserved.
@@ -25,6 +25,9 @@ var $ = require('gulp-load-plugins')();
 var del = require('del');
 var runSequence = require('run-sequence');
 var browserSync = require('browser-sync');
+var glob = require('glob');
+var factor = require('factor-bundle');
+var concat = require('concat-stream');
 var reload = browserSync.reload;
 
 var browserify = require('browserify');
@@ -113,9 +116,11 @@ gulp.task('styles', function() {
 });
 
 // 打包 Common JS 模块
+var entries = glob.sync('app/js/pages/*.js');
+
 var bundleInit = function() {
   var b = watchify(browserify({
-    entries: 'app/js/main.js',
+    entries: entries,
     basedir: __dirname,
     cache: {},
     packageCache: {}
@@ -132,14 +137,24 @@ var bundleInit = function() {
 };
 
 var bundle = function(b) {
-  return b.bundle()
+  var outs = entries.map(function(f) {
+    return write(f.replace(/app\/js\/pages\//, ''));
+  });
+  return b
+    .plugin(factor, {outputs: outs})
+    .bundle()
     .on('error', $.util.log.bind($.util, 'Browserify Error'))
-    .pipe(source('main.js'))
-    .pipe(buffer())
-    .pipe(gulp.dest('dist/js'))
-    .pipe($.uglify())
-    .pipe($.rename({suffix: '.min'}))
-    .pipe(gulp.dest('dist/js'));
+    .pipe(write('common.js'));
+};
+
+var write = function(name) {
+  return concat(function(content) {
+    return $.file(name, content, {src: true})
+      .pipe(gulp.dest('dist/js'))
+      .pipe($.uglify())
+      .pipe($.rename({suffix: '.min'}))
+      .pipe(gulp.dest('dist/js'));
+  });
 };
 
 gulp.task('browserify', bundleInit);
